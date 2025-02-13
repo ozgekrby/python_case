@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sınav</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .question {
+            display: none;
+        }
+        .question.active {
+            display: block;
+        }
+        .navigation-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+        .nav-btn {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: auto;
+        }
+        .nav-btn:hover {
+            background-color: #218838;
+        }
+        .nav-btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .question-counter {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #666;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .question-text {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #333;
+            font-weight: 500;
+        }
+        .options {
+            display: grid;
+            gap: 5px;
+        }
+        .option-button {
+            width: 100%;
+            padding: 8px 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f8f9fa;
+            cursor: pointer;
+            font-size: 15px;
+            text-align: left;
+            transition: all 0.3s ease;
+            color: #333;
+        }
+        .option-button:hover {
+            border-color: #28a745;
+            background-color: #fff;
+            color: #333;
+        }
+        .option-button.selected {
+            border-color: #28a745;
+            background-color: #28a745;
+            color: white;
+        }
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .modal-buttons {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        .modal-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            color: white;
+        }
+        .confirm-btn {
+            background-color: #28a745;
+        }
+        .cancel-btn {
+            background-color: #dc3545;
+        }
+        /* Footer Styles */
+        footer {
+            text-align: center;
+            color: #999;
+            font-size: 12px;
+            padding: 15px 0;
+            width: 100%;
+            position: relative;
+            bottom: 0;
+        }
+        footer p {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="scores-header">
+            <p>Hoşgeldin, <strong>{{ username }}</strong></p>
+            <p>Kişisel Yüksek Skorun: <strong>{{ user_high_score }}%</strong></p>
+            <p>Tüm Zamanların En Yüksek Puanı: <strong>{{ overall_high_score }}%</strong></p>
+            <a href="{{ url_for('main.logout') }}" class="logout-btn">Çıkış Yap</a>
+        </div>
+
+        <h1>Sınav</h1>
+        <div class="question-counter">
+            Soru <span id="currentQuestion">1</span> / <span id="totalQuestions">{{ questions|length }}</span>
+        </div>
+        <form method="POST" id="examForm">
+            {% for question in questions %}
+                <div class="question {% if loop.first %}active{% endif %}" data-question="{{ loop.index }}">
+                    <p class="question-text">{{ question.question_text }}</p>
+                    <div class="options">
+                        {% for option in question.options.split(',') %}
+                            <button type="button" 
+                                    class="option-button" 
+                                    onclick="selectOption(this, '{{ question.id }}', '{{ option.strip() }}')"
+                                    data-value="{{ option.strip() }}">
+                                {{ option.strip() }}
+                            </button>
+                        {% endfor %}
+                    </div>
+                    <input type="hidden" name="{{ question.id }}" id="answer_{{ question.id }}" required>
+                </div>
+            {% endfor %}
+            
+            <div class="navigation-buttons">
+                <button type="button" class="nav-btn" id="prevBtn" onclick="showPreviousQuestion()" disabled>Önceki</button>
+                <button type="button" class="nav-btn" id="nextBtn" onclick="showNextQuestion()">Sonraki</button>
+                <button type="button" class="nav-btn" id="submitBtn" style="display: none;" onclick="showConfirmModal()">Sınavı Bitir</button>
+            </div>
+        </form>
+
+        <footer>
+            <p>Özge Karabay tarafından geliştirildi. Tüm hakları saklıdır.</p>
+        </footer>
+    </div>
+
+    <!-- Onay Modal -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-content">
+            <h2>Sınavı Bitir</h2>
+            <p>Sınavı bitirmek istediğinize emin misiniz?</p>
+            <div class="modal-buttons">
+                <button class="modal-btn confirm-btn" onclick="submitExam()">Evet, Bitir</button>
+                <button class="modal-btn cancel-btn" onclick="hideConfirmModal()">Hayır, Devam Et</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentQuestionIndex = 1;
+        const totalQuestions = {{ questions|length }};
+
+        function updateQuestionCounter() {
+            document.getElementById('currentQuestion').textContent = currentQuestionIndex;
+        }
+
+        function selectOption(button, questionId, value) {
+            // Önce tüm butonların seçimini kaldır
+            const options = button.parentElement.querySelectorAll('.option-button');
+            options.forEach(opt => opt.classList.remove('selected'));
+            
+            // Seçilen butonu işaretle
+            button.classList.add('selected');
+            
+            // Hidden input'a değeri kaydet
+            document.getElementById('answer_' + questionId).value = value;
+        }
+
+        function showQuestion(index) {
+            // Tüm soruları gizle
+            document.querySelectorAll('.question').forEach(q => q.classList.remove('active'));
+            // Seçili soruyu göster
+            document.querySelector(`.question[data-question="${index}"]`).classList.add('active');
+            
+            // Butonları güncelle
+            document.getElementById('prevBtn').disabled = index === 1;
+            if (index === totalQuestions) {
+                document.getElementById('nextBtn').style.display = 'none';
+                document.getElementById('submitBtn').style.display = 'block';
+            } else {
+                document.getElementById('nextBtn').style.display = 'block';
+                document.getElementById('submitBtn').style.display = 'none';
+            }
+        }
+
+        function showNextQuestion() {
+            // Mevcut sorunun cevabını kontrol et
+            const currentQuestion = document.querySelector(`.question[data-question="${currentQuestionIndex}"]`);
+            const hiddenInput = currentQuestion.querySelector('input[type="hidden"]');
+            
+            if (!hiddenInput.value) {
+                alert('Lütfen bir seçenek seçin!');
+                return;
+            }
+
+            if (currentQuestionIndex < totalQuestions) {
+                currentQuestionIndex++;
+                showQuestion(currentQuestionIndex);
+                updateQuestionCounter();
+            }
+        }
+
+        function showPreviousQuestion() {
+            if (currentQuestionIndex > 1) {
+                currentQuestionIndex--;
+                showQuestion(currentQuestionIndex);
+                updateQuestionCounter();
+            }
+        }
+
+        function showConfirmModal() {
+            // Önce tüm soruların cevaplanıp cevaplanmadığını kontrol et
+            const allQuestions = document.querySelectorAll('.question');
+            for (const question of allQuestions) {
+                const hiddenInput = question.querySelector('input[type="hidden"]');
+                if (!hiddenInput.value) {
+                    const questionNumber = question.getAttribute('data-question');
+                    alert(`Lütfen ${questionNumber}. soruyu cevaplayın!`);
+                    currentQuestionIndex = parseInt(questionNumber);
+                    showQuestion(currentQuestionIndex);
+                    updateQuestionCounter();
+                    return;
+                }
+            }
+            // Tüm sorular cevaplandıysa modalı göster
+            document.getElementById('confirmModal').style.display = 'block';
+        }
+
+        function hideConfirmModal() {
+            document.getElementById('confirmModal').style.display = 'none';
+        }
+
+        function submitExam() {
+            document.getElementById('examForm').submit();
+        }
+
+        // Modal dışına tıklandığında kapat
+        window.onclick = function(event) {
+            const modal = document.getElementById('confirmModal');
+            if (event.target == modal) {
+                hideConfirmModal();
+            }
+        }
+
+        // Sayfa yüklendiğinde önceden seçilmiş cevapları işaretle
+        window.onload = function() {
+            document.querySelectorAll('.question').forEach(question => {
+                const hiddenInput = question.querySelector('input[type="hidden"]');
+                if (hiddenInput.value) {
+                    const selectedOption = question.querySelector(`.option-button[data-value="${hiddenInput.value}"]`);
+                    if (selectedOption) {
+                        selectedOption.classList.add('selected');
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sınav Sonuçları</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .correct-answer {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .wrong-answer {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .question-result {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .score-big {
+            font-size: 48px;
+            font-weight: bold;
+            color: #007bff;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .score-label {
+            display: block;
+            text-align: center;
+            font-size: 18px;
+            color: #666;
+        }
+        .score-details {
+            text-align: center;
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        .score-details p {
+            margin: 10px 0;
+            color: #666;
+        }
+        .score-details .high-score {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .score-details .overall-high {
+            color: #007bff;
+            font-weight: bold;
+        }
+        .green-button {
+            background-color: #28a745 !important;
+        }
+        .green-button:hover {
+            background-color: #218838 !important;
+        }
+        /* Footer Styles */
+        footer {
+            text-align: center;
+            color: #999;
+            font-size: 12px;
+            padding: 15px 0;
+            width: 100%;
+            position: relative;
+            bottom: 0;
+        }
+        footer p {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{{ username }}'nin Sınav Sonuçları</h1>
+        
+        <div class="score-big">
+            <span class="score-label">PUAN</span>
+            {{ score }}/100
+        </div>
+
+        <div class="score-details">
+            <p>En Yüksek Puanınız: <span class="high-score">{{ user_high_score }}/100</span></p>
+            <p>Tüm Zamanların En Yüksek Puanı: <span class="overall-high">{{ overall_high_score }}/100</span></p>
+        </div>
+
+        <h2>Soru Detayları</h2>
+        {% for result in results %}
+        <div class="question-result">
+            <p><strong>Soru:</strong> {{ result.question }}</p>
+            <p class="{% if result.is_correct %}correct-answer{% else %}wrong-answer{% endif %}">
+                Senin Cevabın: {{ result.user_answer }}
+                {% if not result.is_correct %}
+                    <br>Doğru Cevap: {{ result.correct_answer }}
+                {% endif %}
+            </p>
+        </div>
+        {% endfor %}
+
+        <button onclick="window.location.href='/'" class="green-button">Yeni Sınav</button>
+    </div>
+
+    <footer>
+        <p>Özge Karabay tarafından geliştirildi. Tüm hakları saklıdır.</p>
+    </footer>
+</body>
+</html>
